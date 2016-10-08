@@ -44,22 +44,30 @@ extern "C"
 typedef struct cJSON
 {
     /* next/prev allow you to walk array/object chains. Alternatively, use GetArraySize/GetArrayItem/GetObjectItem */
+    /* 指向兄弟节点，形成双向链表 */
     struct cJSON *next;
     struct cJSON *prev;
+
     /* An array or object item will have a child pointer pointing to a chain of the items in the array/object. */
+    /* 指向子节点，单向链表 */
     struct cJSON *child;
 
     /* The type of the item, as above. */
+    /* 数据类型；见上表 */
     int type;
 
     /* The item's string, if type==cJSON_String */
+    /* 当数据类型为字符时，记录在 valuestring */
     char *valuestring;
     /* The item's number, if type==cJSON_Number */
+    /* 当数据类型为数值时，记录在 valueint */
     int valueint;
     /* The item's number, if type==cJSON_Number */
+    /* 当数据类型为数值时，也会记录一份在 valuedouble */
     double valuedouble;
 
     /* The item's name string, if this item is the child of, or is in the list of subitems of an object. */
+    /* name 的字符串 */
     char *string;
 } cJSON;
 

@@ -111,7 +111,10 @@ void cJSON_Delete(cJSON *c)
     cJSON *next;
     while (c)
     {
+        /* 记录兄弟节点 */
         next = c->next;
+
+        /* 非映射节点，才能直接删除 */
         if (!(c->type & cJSON_IsReference) && c->child)
         {
             cJSON_Delete(c->child);
@@ -139,6 +142,7 @@ static const char *parse_number(cJSON *item, const char *num)
     int signsubscale = 1;
 
     /* Has sign? */
+    /* 带有符号，为负数 */
     if (*num == '-')
     {
         sign = -1;
@@ -169,6 +173,7 @@ static const char *parse_number(cJSON *item, const char *num)
         } while ((*num >= '0') && (*num <= '9'));
     }
     /* Exponent? */
+    /* 是否指数 */
     if ((*num == 'e') || (*num == 'E'))
     {
         num++;
@@ -221,6 +226,7 @@ typedef struct
 } printbuffer;
 
 /* realloc printbuffer if necessary to have at least "needed" bytes more */
+/* 确认输出内容的指针 p 中剩余的位置足够大，不足则使用 pow2gt 2次方式扩容 */
 static char* ensure(printbuffer *p, int needed)
 {
     char *newbuffer;
@@ -460,6 +466,7 @@ static const char *parse_string(cJSON *item, const char *str, const char **ep)
         return 0;
     }
 
+    /* 找到字符串的末尾 */
     while ((*end_ptr != '\"') && *end_ptr && ++len)
     {
         if (*end_ptr++ == '\\')
@@ -483,6 +490,7 @@ static const char *parse_string(cJSON *item, const char *str, const char **ep)
     item->valuestring = out; /* assign here so out will be deleted during cJSON_Delete() later */
     item->type = cJSON_String;
 
+    /* ptr 指向已解析字符串的下一位 */
     ptr = str + 1;
     ptr2 = out;
     /* loop through the string literal */
@@ -513,7 +521,7 @@ static const char *parse_string(cJSON *item, const char *str, const char **ep)
                 case 't':
                     *ptr2++ = '\t';
                     break;
-                case 'u':
+                case 'u': /* utf 转码 */
                     /* transcode utf16 to utf8. See RFC2781 and RFC3629. */
                     uc = parse_hex4(ptr + 1); /* get the unicode char. */
                     ptr += 4;
@@ -598,7 +606,7 @@ static const char *parse_string(cJSON *item, const char *str, const char **ep)
                     }
                     ptr2 += len;
                     break;
-                default:
+                default: /* 正常字符 */
                     *ptr2++ = *ptr;
                     break;
             }
@@ -606,6 +614,7 @@ static const char *parse_string(cJSON *item, const char *str, const char **ep)
         }
     }
     *ptr2 = '\0';
+    /* 解析位置的尾部，跳过最后的 " */
     if (*ptr == '\"')
     {
         ptr++;
@@ -776,6 +785,7 @@ static char *print_object(cJSON *item, int depth, int fmt, printbuffer *p);
 /* Utility to jump whitespace and cr/lf */
 static const char *skip(const char *in)
 {
+    /* 跳过 32 之前的值，即空格之前的所有符号 */
     while (in && *in && ((unsigned char)*in<=32))
     {
         in++;
@@ -785,6 +795,10 @@ static const char *skip(const char *in)
 }
 
 /* Parse an object - create a new root, and populate. */
+/*
+ * value: 需要解析的内容字符指针
+ * return_parse_end: 返回解析结果的指针；为空则使用全局错误指针
+ */
 cJSON *cJSON_ParseWithOpts(const char *value, const char **return_parse_end, int require_null_terminated)
 {
     const char *end = 0;
@@ -853,6 +867,12 @@ char *cJSON_PrintBuffered(cJSON *item, int prebuffer, int fmt)
 
 
 /* Parser core - when encountering text, process appropriately. */
+/*
+ * 核心解析方法。用于 value 解析字符串
+ * item: 存储解析内容的 cJSON 节点
+ * value: 需要解析的字符串指针
+ * ep: 返回解析结果的指针；为空则使用全局错误指针
+ */
 static const char *parse_value(cJSON *item, const char *value, const char **ep)
 {
     if (!value)
@@ -862,22 +882,30 @@ static const char *parse_value(cJSON *item, const char *value, const char **ep)
     }
 
     /* parse the different types of values */
+    /* 整个内容就是 null */
     if (!strncmp(value, "null", 4))
     {
         item->type = cJSON_NULL;
         return value + 4;
     }
+
+    /* 整个内容就是 false */
     if (!strncmp(value, "false", 5))
     {
         item->type = cJSON_False;
+        /* item->valueint = 0; 默认值 */
         return value + 5;
     }
+
+    /* 整个内容就是 true */
     if (!strncmp(value, "true", 4))
     {
         item->type = cJSON_True;
         item->valueint = 1;
         return value + 4;
     }
+
+    /* 第一个符号为双引号，用解析为字符串 */
     if (*value == '\"')
     {
         return parse_string(item, value, ep);
@@ -886,6 +914,8 @@ static const char *parse_value(cJSON *item, const char *value, const char **ep)
     {
         return parse_number(item, value);
     }
+    
+    /* 第一个符号为 [ 则为数组；为 { 则为对象。下面两个解析方法中都会递归parse_value */
     if (*value == '[')
     {
         return parse_array(item, value, ep);
@@ -899,6 +929,12 @@ static const char *parse_value(cJSON *item, const char *value, const char **ep)
 }
 
 /* Render a value to text. */
+/*
+ * item: 存储解析内容的 cJSON 节点
+ * depth: 打印深度
+ * fmt: 返回解析结果的指针；为空则使用全局错误指针
+ * p: 用于存储打印内容的指针
+ */
 static char *print_value(cJSON *item, int depth, int fmt, printbuffer *p)
 {
     char *out = 0;
@@ -907,6 +943,7 @@ static char *print_value(cJSON *item, int depth, int fmt, printbuffer *p)
     {
         return 0;
     }
+    /* out 为 p 中对应的输出位置 */
     if (p)
     {
         switch ((item->type) & 0xFF)
@@ -978,9 +1015,14 @@ static char *print_value(cJSON *item, int depth, int fmt, printbuffer *p)
 }
 
 /* Build an array from input text. */
+/*
+ * 解析数组
+ * 与解析对象类似，少了对键的复制
+ */
 static const char *parse_array(cJSON *item,const char *value,const char **ep)
 {
     cJSON *child;
+    /* 对象头部，如果不是以 [ 为错误 */
     if (*value != '[')
     {
         /* not an array! */
@@ -1032,6 +1074,7 @@ static const char *parse_array(cJSON *item,const char *value,const char **ep)
         }
     }
 
+    /* 对象尾部，如果不是以 ] 为错误 */
     if (*value == ']')
     {
         /* end of array */
@@ -1214,6 +1257,7 @@ static char *print_array(cJSON *item, int depth, int fmt, printbuffer *p)
 static const char *parse_object(cJSON *item, const char *value, const char **ep)
 {
     cJSON *child;
+    /* 对象头部，如果不是以 { 为错误 */
     if (*value != '{')
     {
         /* not an object! */
@@ -1236,6 +1280,14 @@ static const char *parse_object(cJSON *item, const char *value, const char **ep)
         return 0;
     }
     /* parse first key */
+    /* 
+     =====================================
+     = 解析第一对键值
+     = 先解析 key ，拿取 : , 再解析 value
+     =====================================
+     * parse_string 将内容解析到 child->valuestring
+     * 后续将 child->valuestring 赋予到 child->string
+     */
     value = skip(parse_string(child, skip(value), ep));
     if (!value)
     {
@@ -1245,6 +1297,10 @@ static const char *parse_object(cJSON *item, const char *value, const char **ep)
     child->string = child->valuestring;
     child->valuestring = 0;
 
+    /*
+     * 之前已跳过无关符号
+     * 下一个符号必须为 : , 否则有误
+     */
     if (*value != ':')
     {
         /* invalid object. */
@@ -1252,12 +1308,14 @@ static const char *parse_object(cJSON *item, const char *value, const char **ep)
         return 0;
     }
     /* skip any spacing, get the value. */
+    /* 跳过空格，获取值-可能是任意类型 */
     value = skip(parse_value(child, skip(value + 1), ep));
     if (!value)
     {
         return 0;
     }
 
+    /* 解析之后的兄弟节点 */
     while (*value == ',')
     {
         cJSON *new_item;
@@ -1267,6 +1325,7 @@ static const char *parse_object(cJSON *item, const char *value, const char **ep)
             return 0;
         }
         /* add to linked list */
+        /* 节点增加 */
         child->next = new_item;
         new_item->prev = child;
 
@@ -1295,6 +1354,7 @@ static const char *parse_object(cJSON *item, const char *value, const char **ep)
         }
     }
     /* end of object */
+    /* 对象尾部，如果不是以 } 为错误 */
     if (*value == '}')
     {
         return value + 1;
