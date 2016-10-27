@@ -869,9 +869,9 @@ char *cJSON_PrintBuffered(cJSON *item, int prebuffer, int fmt)
 /* Parser core - when encountering text, process appropriately. */
 /*
  * 核心解析方法。用于 value 解析字符串
- * item: 存储解析内容的 cJSON 节点
- * value: 需要解析的字符串指针
- * ep: 返回解析结果的指针；为空则使用全局错误指针
+ * - item: 存储解析内容的 cJSON 节点
+ * - value: 需要解析的字符串指针
+ * - ep: 返回解析结果的指针；为空则使用全局错误指针
  */
 static const char *parse_value(cJSON *item, const char *value, const char **ep)
 {
@@ -930,10 +930,10 @@ static const char *parse_value(cJSON *item, const char *value, const char **ep)
 
 /* Render a value to text. */
 /*
- * item: 存储解析内容的 cJSON 节点
- * depth: 打印深度
- * fmt: 返回解析结果的指针；为空则使用全局错误指针
- * p: 用于存储打印内容的指针
+ * - item: 存储解析内容的 cJSON 节点
+ * - depth: 打印深度，用于输出 depth 个 \t
+ * - fmt: format 参数，表示 , 逗号后分割需要空格
+ * - p: 用于存储打印内容的指针
  */
 static char *print_value(cJSON *item, int depth, int fmt, printbuffer *p)
 {
@@ -2112,6 +2112,7 @@ cJSON *cJSON_CreateStringArray(const char **strings, int count)
 }
 
 /* Duplication */
+/* 复制 cJSON 结构体 */
 cJSON *cJSON_Duplicate(cJSON *item, int recurse)
 {
     cJSON *newitem;
@@ -2131,6 +2132,7 @@ cJSON *cJSON_Duplicate(cJSON *item, int recurse)
         return 0;
     }
     /* Copy over all vars */
+    /* 映射的也直接复制 */
     newitem->type = item->type & (~cJSON_IsReference);
     newitem->valueint = item->valueint;
     newitem->valuedouble = item->valuedouble;
@@ -2185,6 +2187,10 @@ cJSON *cJSON_Duplicate(cJSON *item, int recurse)
     return newitem;
 }
 
+/*
+ * 内容最小化
+ * 去除无用的 空格、\t、\r、\n 等
+ */
 void cJSON_Minify(char *json)
 {
     char *into = json;
